@@ -81,13 +81,19 @@ func crdProcEnqueue(ar *admissionv1beta1.AdmissionReview) error {
 // First it will dequeue first crd event name.
 // Second it will use the name to find the crd content
 // Third it will call process. if failed a crd delete will issued to remove from k8s
+// 进程线程每 10 秒定期执行一次
+// 首先它将出列第一个 crd 事件名称。
+// 其次它将使用名称来查找 crd 内容
+// 第三个它会调用 process. 如果失败，将发出 crd delete 以从 k8s 中删除
 func CrdQueueProc() {
 	for {
 		select {
 		case <-crdEventProcTicker.C:
 			// after weak up the thread will gry to drain crd event queue
+			// 弱化后线程将耗尽 crd 事件队列
 		NEXT_CRD:
 			// add peak at beginning to avoid lock everytime.
+			// 在开始时添加峰值以避免每次锁定。
 			crdEventQueue := clusHelper.GetCrdEventQueue()
 			if crdEventQueue == nil || len(crdEventQueue.CrdEventRecord) == 0 {
 				continue
@@ -99,17 +105,22 @@ func CrdQueueProc() {
 			}
 			// reread the kv after lock
 			// First get the name of the crd in event queue, this queue keep the event order
+			// 锁定后重读kv
+			// 首先获取事件队列中 crd 的名称，该队列保持事件顺序
 			crdEventQueue = clusHelper.GetCrdEventQueue()
 			if crdEventQueue == nil || len(crdEventQueue.CrdEventRecord) == 0 {
 				// never have crd event so the store key never extablished
+				// 永远不会有 crd 事件，所以 store 密钥永远不会被 extablished
 				clusHelper.ReleaseLock(lock)
 				continue
 			}
 			name := crdEventQueue.CrdEventRecord[0]
 			// dequeue the first event from head
+			// 从头中取出第一个事件
 			crdEventQueue.CrdEventRecord = crdEventQueue.CrdEventRecord[1:]
 			if len(crdEventQueue.CrdEventRecord) == 0 {
 				// release the under laying slice memory when queue is empty.
+				// 当队列为空时释放底层切片内存。
 				crdEventQueue.CrdEventRecord = nil
 			}
 			if err := clusHelper.PutCrdEventQueue(crdEventQueue); err != nil {
@@ -118,6 +129,7 @@ func CrdQueueProc() {
 				continue
 			}
 			// Second use the name go get the content of the crd
+			// 第二次使用名称去获取crd的内容
 			crdProcRecord := clusHelper.GetCrdRecord(name)
 			if crdProcRecord == nil {
 				log.WithFields(log.Fields{"Dequeu  crd can't find record": name}).Error("")
@@ -152,6 +164,7 @@ func CrdQueueProc() {
 			crdHandler.crdvalidate(record)
 			crdHandler.ReleaseLock()
 			// For multiple controller, need give other controller a chance
+			// 对于多个控制器，需要给其他控制器一个机会
 			time.Sleep(1 * time.Second)
 			goto NEXT_CRD
 		}

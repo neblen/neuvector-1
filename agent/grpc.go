@@ -34,6 +34,8 @@ func (ss *ScanService) setScanStart(id string) bool {
 
 	// In case a scan takes a long time to finish, ctrl will retry the request
 	// Avoid triggering the same scan for such case
+	// 如果扫描需要很长时间来完成，ctrl键将重试请求
+	// 避免在这种情况下触发相同的扫描
 	if ss.scanning.Contains(id) {
 		return true
 	}
@@ -49,6 +51,7 @@ func (ss *ScanService) setScanDone(id string) {
 	ss.scanning.Remove(id)
 }
 
+// 扫描主机、容器
 func (ss *ScanService) ScanGetFiles(ctx context.Context, req *share.ScanRunningRequest) (*share.ScanData, error) {
 	// Use Info log level so we by default log it's scanning
 	log.WithFields(log.Fields{"id": req.ID}).Info("")
@@ -57,7 +60,7 @@ func (ss *ScanService) ScanGetFiles(ctx context.Context, req *share.ScanRunningR
 		log.WithFields(log.Fields{"id": req.ID}).Info("scan in propress")
 		return &share.ScanData{Error: share.ScanErrorCode_ScanErrInProgress}, nil
 	}
-
+	// 解锁最后删除改id
 	defer ss.setScanDone(req.ID)
 
 	var pid int
@@ -80,6 +83,7 @@ func (ss *ScanService) ScanGetFiles(ctx context.Context, req *share.ScanRunningR
 	gInfoRUnlock()
 
 	// Use the cached buffer if it's valid
+	// 如果缓存是有效的，使用它
 	if data.Buffer != nil {
 		log.WithFields(log.Fields{"id": req.ID}).Info("return cached data")
 		return &data, nil
@@ -136,7 +140,7 @@ func (s *CapService) IsGRPCCompressed(ctx context.Context, v *share.RPCVoid) (*s
 func startGRPCServer(port uint16) (*cluster.GRPCServer, uint16) {
 	var grpc *cluster.GRPCServer
 	var err error
-
+	//默认为18401
 	if port == 0 {
 		port = cluster.DefaultAgentGRPCPort
 	}
@@ -151,9 +155,11 @@ func startGRPCServer(port uint16) (*cluster.GRPCServer, uint16) {
 			break
 		}
 	}
-
+	// 判断能不能连接上?
 	share.RegisterEnforcerCapServiceServer(grpc.GetServer(), new(CapService))
+	// 具体实现代码在agent/service.go中,主要功能实现:获取解析回话列表头、获取探针汇总，process、RunDockerBench、RunKubernetesBench、解析和获取的DLP规则 、GetFileMonitorFile等等
 	share.RegisterEnforcerServiceServer(grpc.GetServer(), new(RPCService))
+	// 扫描主机、容器,在scanner/server/ScanRunning中被调用
 	share.RegisterEnforcerScanServiceServer(grpc.GetServer(), newScanService())
 	go grpc.Start()
 
@@ -200,6 +206,7 @@ func requestAdmission(req *share.CLUSAdmissionRequest, timeout time.Duration) (*
 	return client.RequestAdmission(ctx, req)
 }
 
+// 寄送已学习的process
 func sendLearnedProcess(procs []*share.CLUSProcProfileReq) error {
 	log.WithFields(log.Fields{"processes": len(procs)}).Debug("")
 

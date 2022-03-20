@@ -279,6 +279,7 @@ func (pc *uuidPRuleCache) ResetProcessUuidRuleMap() bool {
 }
 
 ///// from cacher
+// 将对应的processProfile添加进一个update集合中，这个集合又会在ruleId.Init()中定期添加。
 func (pc *uuidPRuleCache) AddProcesProfile(pp *share.CLUSProcessProfile) {
 	profile := *pp // local copy
 	pc.pendingCacheLock.Lock()

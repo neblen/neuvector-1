@@ -961,6 +961,7 @@ func handlerServiceCreate(w http.ResponseWriter, r *http.Request, ps httprouter.
 	restRespSuccess(w, r, nil, acc, login, &rconf, "Create service")
 }
 
+//修改组的策略则对应的进程和文件检测文件都需要修改信息
 func configPolicyMode(grp *share.CLUSGroup) error {
 	if pp := clusHelper.GetProcessProfile(grp.Name); pp != nil {
 		pp.Mode = grp.ProfileMode
@@ -979,6 +980,7 @@ func configPolicyMode(grp *share.CLUSGroup) error {
 	return nil
 }
 
+//修改对应的策略信息（monitor discover protect）
 func handlerServiceBatchConfig(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	log.WithFields(log.Fields{"URL": r.URL.String()}).Debug()
 	defer r.Body.Close()
@@ -990,10 +992,13 @@ func handlerServiceBatchConfig(w http.ResponseWriter, r *http.Request, ps httpro
 		restRespAccessDenied(w, login)
 		return
 	}
-
+	// 使用iotil.ReadAll去读取go语言里大的Response Body ，是非常低效的; 另外如果Response Body足够大，还有内存泄漏的风险。
+	// 官方ioutil.ReadAll是通过初始大小为512字节的切片来读取reader，我们的response body大概50M， 很明显会频繁触发切片扩容，产生不必要的内存分配，给gc也带来压力。
+	// go切片扩容的时机：需求小于256字节，按照2倍扩容;超过256字节，按照1.25倍扩容。
 	body, _ := ioutil.ReadAll(r.Body)
 
 	var rconf api.RESTServiceBatchConfigData
+	// Json Unmarshal：将json字符串解码到相应的数据结构
 	err := json.Unmarshal(body, &rconf)
 	if err != nil || rconf.Config == nil || len(rconf.Config.Services) == 0 {
 		log.WithFields(log.Fields{"error": err}).Error("Request error")

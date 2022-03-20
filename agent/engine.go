@@ -321,6 +321,8 @@ func runtimeEventCallback(ev container.Event, id string, pid int) {
 	case container.EventContainerStop:
 		// containerd runtime report TaskExit for both process stop and container stop.
 		// Here is to make sure the pid is container's pid and avoid writing event log
+		// containerd运行时报告TaskExit进程停止和容器停止。
+		// 这里是为了确保pid是容器的pid，避免写入事件日志
 		if pid != 0 {
 			gInfoRLock()
 			_, ok := gInfo.activePid2ID[pid]
@@ -353,6 +355,7 @@ func runtimeEventCallback(ev container.Event, id string, pid int) {
 		}
 	case container.EventNetworkCreate:
 		// ignore network creatation for now, the special lb-net endpoint is detected when new container starts
+		// 当新的容器启动时，会检测到特殊的lb-net端点
 	case container.EventNetworkDelete:
 		handleNetworkDelete(id)
 	case container.EventSocketError:
@@ -410,6 +413,9 @@ func addContainerSubnets(c *containerData, subnetMap map[string]share.CLUSSubnet
 	// Service IPs are in a different subnet in Kubernetes, if we don't learn it at the
 	// enforcer, connections are marked as 'external' before internal subnets are pushed
 	// from the controllers.
+	//服务ip在Kubernetes的不同子网中，如果我们不学习它
+	// enforcer，在推送内部子网之前，连接被标记为'external'
+	//从控制器。
 	if c.svcSubnet != nil {
 		subnet := utils.IPNet2SubnetLoose(c.svcSubnet, share.CLUSIPAddrScopeGlobal)
 		if _, ok := subnetMap[subnet.String()]; !ok {
@@ -1059,6 +1065,7 @@ func fillContainerProperties(c *containerData, parent *containerData,
 	info *container.ContainerMetaExtra, hostMode bool) {
 
 	// Not using write lock because all fields filled here are simple
+	// 不使用写锁，因为这里填充的所有字段都很简单
 	c.svcSubnet = global.ORCH.GetServiceSubnet(info.Envs)
 	if parent == nil {
 		svc := global.ORCH.GetService(&info.ContainerMeta)
@@ -1069,6 +1076,9 @@ func fillContainerProperties(c *containerData, parent *containerData,
 		// Deprecated: (In Rancher environment, ipsec-ipsec containers act as a proxy. It causes confusion
 		// on policy rules and graph, so not to inspect platform containers' traffic)
 		// As of now 2018/09, most platforms are kubernetes based, we can inspect system container traffic.
+		// 已弃用:(在Rancher环境中，ipsec-ipsec容器作为代理。它会引起混乱
+		// 关于策略规则和图表，所以不检查平台集装箱的流量)
+		// 截至2018/09年，大多数平台都是基于kubernetes的，我们可以检查系统集装箱流量。
 		if pct, secure := global.ORCH.GetPlatformRole(&info.ContainerMeta); pct != "" {
 			// Skip infrastructure containers
 			c.role = pct
@@ -1155,6 +1165,7 @@ func updateContainerNetworks(c *containerData, info *container.ContainerMetaExtr
 
 func programPorts(c *containerData, restore bool) ([]*pipe.InterceptPair, error) {
 	// Platform containers' interfaces should be inspected, so instead of check against hasDatapath,
+	// 平台容器的接口应该被检查，所以我们检查的不是hasDatapath，而是parentNS
 	// we check parentNS
 	if c.hostMode {
 		return nil, errHostModeUnsupported
@@ -1299,6 +1310,8 @@ func examNeuVectorInterface(c *containerData, change int) {
 
 	// When changing between tap and inline, UC/BCMAC, in/exPort all changed. =>
 	// Always take the new copy and set the scope again
+	// 当在tap和inline之间切换时，UC/BCMAC，在/exPort中全部更改。=比;
+	// 总是获取新的副本并再次设置作用域
 	c.intcpPairs = intcpPairs
 	setIPAddrScope(c)
 
@@ -1359,6 +1372,8 @@ func startNeuVectorMonitors(id, role string, info *container.ContainerMetaExtra)
 
 	// Because activePid2ID doesn't have neuvector container in it, we cannot always get
 	// the parent container id, but the isChild flag is correct.
+	// 因为activePid2ID中没有neuvector容器，我们不能总是得到
+	// 父容器id，但isChild标志是正确的。
 	isChild, _ := global.RT.GetParent(info, gInfo.activePid2ID)
 
 	// svc:
@@ -1368,6 +1383,7 @@ func startNeuVectorMonitors(id, role string, info *container.ContainerMetaExtra)
 	svc := global.ORCH.GetService(&info.ContainerMeta)
 	c.service = utils.MakeServiceName(svc.Domain, svc.Name)
 	c.domain = svc.Domain
+	// 采用nv.+svc那么的名字
 	group := makeLearnedGroupName(utils.NormalizeForURL(c.service))
 
 	gInfoLock() // guarding from deleting old instance
@@ -1383,15 +1399,20 @@ func startNeuVectorMonitors(id, role string, info *container.ContainerMetaExtra)
 	}
 
 	// process monitor : protect mode, process profiles for all neuvector containers
+	// 进程监控:保护模式，所有neuvector容器的进程概况
 	if agentEnv.containerShieldMode {
 		// process killer per policy: removed by evaluating other same-kind instances
 		// since the same policy might be shared by several same-kind instances in a node
+		// 每个策略的进程杀手:通过计算其他相同类型的实例来删除
+		// 因为同一个策略可能被一个节点中的多个同类实例共享
 		pe.InsertNeuvectorProcessProfilePolicy(group, role)
 
 		// process blocker per container: can be removed by its container id
 		// applyProcessProfilePolicy(c, group)
 
 		// file monitors : protect mode, core-definitions, only modification alerts
+		// 每个容器的进程阻塞器:可以通过其容器id移除
+		// 文件监视器:保护模式，核心定义，只有修改警报
 		fileWatcher.ContainerCleanup(info.Pid)
 		conf := &fsmon.FsmonConfig{Profile: &fsmon.DefaultContainerConf}
 		conf.Profile.Filters = append(conf.Profile.Filters, share.CLUSFileMonitorFilter{
@@ -1423,10 +1444,12 @@ func stopNeuVectorMonitor(c *containerData) {
 
 	// For stop and delete event, whoever is received first, delete the container from the map
 	// and send both STOP and DEL event, because we only care when NeuVector container is running.
-
+	// 对于停止和删除事件，谁先收到，从映射中删除容器
+	// 同时发送STOP和DEL事件，因为我们只关心NeuVector容器什么时候运行。
 	c.info.Running = false
 
 	// cloning it to avoid GC removing the allocated memory after deleting entry from its map
+	// 克隆它以避免GC在从它的map中删除条目后删除分配的内存
 	info := c.info
 	info.FinishedAt = c.info.FinishedAt
 	if info.FinishedAt.IsZero() {
@@ -1479,6 +1502,10 @@ func taskInterceptContainer(id string, info *container.ContainerMetaExtra) {
 	// can be quite long when there are a lot of containers up and down. if the container is
 	// stopped and then restarted in this period, it's pid will change. Ignore the first
 	// scheduled intercept event.
+	// 在添加的容器和拦截的容器之间有一个窗口。这两个事件之间的时间
+	// 当上下有很多容器时，可以很长。如果容器是
+	// 停止，然后重新启动在这段时间，它的pid将改变。忽略第一个
+	// 调度截取事件。
 	if c.pid != info.Pid {
 		log.WithFields(log.Fields{"container": id}).Debug("Container altered")
 		return
@@ -1500,11 +1527,18 @@ func taskInterceptContainer(id string, info *container.ContainerMetaExtra) {
 
 	// The order to call this function for parent and child container is not guaranteed, wait for the parent
 	// if the child comes first
+	// 父容器和子容器调用这个函数的顺序是不保证的，等待父容器
+	// 如果孩子在前面
 	// TODO: Why check parent.service? The order is not guaranteed even when parent exists, because it is added
 	//       into activeContainers in AddContainer(). When we get here, the container must be running, and
 	//       service value must not be empty if parent has called taskInterceptContainer(). This shouldn't
 	//       create infinite loop if container exits quickly, above checks should prevent that.
 	//       ==> Need to reconsider this sequence logics.
+	// 为什么要检查parent.service?即使父级存在，也不能保证顺序，因为它被添加了
+	// 在AddContainer()中进入activeContainers。等我们到了，集装箱肯定还在运转
+	// service value不能为空，如果parent调用了taskInterceptContainer()。这个不应该
+	// 如果容器快速退出，则创建无限循环，上面的检查应防止这种情况。
+	//       ==& gt;需要重新考虑这个序列逻辑。
 	isChild, parent := getSharedContainer(info)
 	if isChild && (parent == nil || parent.service == "") {
 		log.WithFields(log.Fields{"container": id}).Debug("Wait for parent")
@@ -1562,16 +1596,19 @@ func taskInterceptContainer(id string, info *container.ContainerMetaExtra) {
 
 func taskAddContainer(id string, info *container.ContainerMetaExtra) {
 	// This can be invoked from Docker socket and probe. Only used in task loop, no lock.
+	// 这可以从Docker socket和probe调用。只在任务循环中使用，无锁。
 	if _, ok := gInfo.activeContainers[id]; ok {
 		return
 	}
 
 	if info == nil || info.Pid == 0 {
 		// Tasks from process monitor or scan-timer-loop
+		// 从进程监视器或扫描定时器循环的任务
 		var err error
 		for i := 0; i < 2; i++ {
 			if info, err = global.RT.GetContainer(id); err != nil {
 				// Container: too early, container information is not ready, waiting for runtime API event
+				// Container:太早，容器信息未准备好，等待运行时发生API事件
 				log.WithFields(log.Fields{"id": id, "err": err}).Debug("container info not ready")
 				return
 			}
@@ -1581,6 +1618,7 @@ func taskAddContainer(id string, info *container.ContainerMetaExtra) {
 			}
 
 			// 2nd chance because the container info are not ready yet
+			// 第二次机会，因为容器信息还没有准备好
 			time.Sleep(time.Millisecond * 50)
 			// log.Debug("2nd chance")
 		}
@@ -1593,6 +1631,7 @@ func taskAddContainer(id string, info *container.ContainerMetaExtra) {
 		info.Running = false // update it and put a cluster record for the exited container
 	} else {
 		// patch undetected container pid
+		// 补丁未检测到的容器pid
 		go prober.PatchContainerProcess(info.Pid, false)
 	}
 
@@ -1603,6 +1642,8 @@ func taskAddContainer(id string, info *container.ContainerMetaExtra) {
 			log.WithFields(log.Fields{"id": id, "role": role, "pid": info.Pid}).Debug("PROC: exited NeuVector")
 			// Sending notification to controller for NeuVector containers is to report
 			// the interface list. No need if the container is not running
+			// 发送通知给控制器的NeuVector容器是报告
+			// 接口列表。如果容器没有运行，则不需要
 		}
 		return
 	}
@@ -1669,6 +1710,7 @@ func taskAddContainer(id string, info *container.ContainerMetaExtra) {
 	since := time.Since(info.StartedAt)
 	if since < containerGracePeriod {
 		// Set timer to recheck if we handle the workload early
+		// 设置定时器重新检查我们是否处理工作负载过早
 		if err := scheduleTask(id, info, TASK_INTERCEPT_CONTAINER,
 			containerGracePeriod); err != nil {
 			log.WithFields(log.Fields{"id": id, "info": info}).Error("schedule intercept failed!")
@@ -1687,6 +1729,8 @@ func taskStopContainer(id string, pid int) {
 
 	// containerd runtime report TaskExit for both process stop and container stop.
 	// Here is to make sure the pid is container's pid
+	// containerd运行时报告TaskExit进程停止和容器停止。
+	// 这里是为了确保pid是容器的pid
 	c, ok := gInfo.activeContainers[id]
 	if !ok || (pid != 0 && pid != c.pid) {
 		return
@@ -1700,6 +1744,7 @@ func taskStopContainer(id string, pid int) {
 		info.Running = false
 	} else if info.Running {
 		// not a relaible source: from process monitor
+		// 不是一个可靠的来源:从进程监视器
 		log.WithFields(log.Fields{"id": id}).Debug("skip stop as container is still running")
 		return
 	}
@@ -1714,12 +1759,14 @@ func taskStopContainer(id string, pid int) {
 	ClusterEventChan <- &ev
 
 	// entry to leave group policies
+	// 离开组策略的入口
 	workloadLeaveGroup(c)
 	bench.RemoveContainer(id)
 	prober.HandleAnchorModeChange(false, id, c.upperDir, 0)
 
 	if !c.hostMode && c.hasDatapath {
 		// Stop monitor interface change before we reconnect the ports
+		// 在我们重新连接端口之前停止监视器接口的变化
 		prober.StopMonitorInterface(id)
 
 		if c.inline || c.quar {
@@ -1834,10 +1881,12 @@ func taskDPConnect() {
 
 // gInfo write should only be done in this thread; and gInfo read doesn't need to be locked
 // in this thread.
+// gInfo写入应该只在这个线程中完成;gInfo读取不需要被锁定
 func containerTaskWorker(probeChan chan *probe.ProbeMessage, fsmonChan chan *fsmon.MonitorMessage, dpStatusChan chan bool) {
 	log.Debug()
 
 	for {
+		// 循环检测容器通道，探针通道，系统文件监控信息通道和文件路径通道是否满足，其中一个满足就执行case
 		if shouldExit() {
 			log.Info("Exit task worker")
 			break
@@ -1901,24 +1950,30 @@ func containerTaskWorker(probeChan chan *probe.ProbeMessage, fsmonChan chan *fsm
 					taskReexamIntfContainer(id.(string), nil, true)
 				}
 			case probe.PROBE_REPORT_ESCALATION:
+				//报告升级事件
 				reportIncident(escalToIncidentLog(pmsg.Escalation, pmsg.Count, pmsg.StartAt))
 			case probe.PROBE_REPORT_SUSPICIOUS:
+				//报告可疑的事件
 				reportIncident(suspicToIncidentLog(pmsg.Process, pmsg.Count, pmsg.StartAt))
 			case probe.PROBE_REPORT_TUNNEL:
+				//报告违反的事件
 				reportIncident(tunnelToIncidentLog(pmsg.Process, pmsg.Count, pmsg.StartAt))
 			case probe.PROBE_REPORT_PROCESS_VIOLATION:
 				reportIncident(procViolationToIncidentLog(pmsg.Process, pmsg.Count, pmsg.StartAt))
 			case probe.PROBE_REPORT_PROCESS_DENIED:
+				//报告denied拒绝的事件
 				reportIncident(procDeniedToIncidentLog(pmsg.Process, pmsg.Count, pmsg.StartAt))
 			}
 
 			log.WithFields(log.Fields{"msg": msgName}).Debug("Probe message done")
 
 		case imsg := <-fsmonChan:
+			// 报告事件:收到文件系统监控消息
 			//	log.WithFields(log.Fields{ "container": imsg.ID}).Debug("File system monitor message received")
 			reportIncident(fileModifiedToIncidentLog(imsg))
 		case connected := <-dpStatusChan:
 			if connected {
+				////包括过滤DLP
 				taskDPConnect()
 			}
 		}
@@ -1931,6 +1986,7 @@ func containerTaskWorker(probeChan chan *probe.ProbeMessage, fsmonChan chan *fsm
 
 func containerTaskExit() {
 	// Make sure the function only called once
+	// 确保函数只被调用一次
 	if atomic.CompareAndSwapInt32(&exitingTaskFlag, 0, 1) == false {
 		return
 	}
@@ -1948,6 +2004,7 @@ func containerTaskExit() {
 		}
 	}
 	// The following operations are optional
+	// 以下操作为可选操作
 	for _, c := range gInfo.activeContainers {
 		if c.inline || c.quar {
 			for _, pair := range c.intcpPairs {
@@ -1972,7 +2029,7 @@ func containerTaskExit() {
 }
 
 func eventMonitorLoop(probeChan chan *probe.ProbeMessage, fsmonChan chan *fsmon.MonitorMessage, dpStatusChan chan bool) {
-
+	//设置容器拦截延迟
 	setContainerInterceptDelay()
 
 	go containerTaskWorker(probeChan, fsmonChan, dpStatusChan)

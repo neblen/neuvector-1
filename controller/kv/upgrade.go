@@ -507,6 +507,7 @@ func upgrade(key string, value []byte) ([]byte, error) {
 }
 
 // This is called whenever we read from kv store or get notified by kv changes.
+// 每当我们从 kv 存储中读取或收到 kv 更改的通知时都会调用它。
 func UpgradeAndConvert(key string, value []byte) ([]byte, error) {
 	if len(value) == 0 {
 		return value, nil

@@ -138,6 +138,8 @@ func getLocalInfo(selfID string, pid2ID map[int]string) error {
 
 // Sort existing containers, move containers share network ns to other containers to the front.
 // Only need to consider containers in the set, not those already exist.
+//对现有容器进行排序，将共享网络ns的容器移动到其他容器的前面。
+//只需要考虑集合中的容器，而不是已经存在的容器。
 func sortContainerByNetMode(ids utils.Set) []*container.ContainerMetaExtra {
 	sorted := make([]*container.ContainerMetaExtra, 0, ids.Cardinality())
 	for id := range ids.Iter() {
@@ -151,6 +153,8 @@ func sortContainerByNetMode(ids utils.Set) []*container.ContainerMetaExtra {
 
 // Sort existing containers, move containers share network ns to other containers to the front.
 // Only for Container Start from Probe channel
+//对现有容器进行排序，将共享网络ns的容器移动到其他容器的前面。
+//仅用于容器从探测通道启动
 func sortProbeContainerByNetMode(starts utils.Set) []*container.ContainerMetaExtra {
 	sorted := make([]*container.ContainerMetaExtra, 0, starts.Cardinality())
 	for start := range starts.Iter() {
@@ -169,6 +173,8 @@ func sortProbeContainerByNetMode(starts utils.Set) []*container.ContainerMetaExt
 
 // Enforcer cannot run together with enforcer.
 // With SDN, enforcer can run together with controller; otherwise, port conflict will prevent them from running.
+// Enforcer不能与Enforcer同时运行。
+//有了SDN, enforcer可以和controller一起运行;否则，端口冲突将导致无法运行。
 func checkAntiAffinity(containers []*container.ContainerMeta, skips ...string) error {
 	skipSet := utils.NewSet()
 	for _, skip := range skips {
@@ -200,6 +206,10 @@ func waitContainerTaskExit() {
 	// If clean-up doesn't star, it's possible that container task queue get stuck.
 	// In that case, call clean-up function directly and move forward. If the clean-up
 	// already started, keep waiting.
+	//等待容器任务gorouting exit，并恢复容器端口。
+	//如果清理没有启动，它可能是容器的任务队列卡住。
+	//在这种情况下，直接调用清理函数并向前移动。如果清理
+	//已经启动，继续等待。
 	for {
 		select {
 		case <-containerTaskExitChan:
@@ -223,6 +233,7 @@ func dumpGoroutineStack() {
 }
 
 // TODO: sidecar implementation might have two app pods
+//idecar的实现可能有两个app pods
 func adjustContainerPod(selfID string, containers []*container.ContainerMeta) string {
 	for _, c := range containers {
 		if v, ok := c.Labels["io.kubernetes.sandbox.id"]; ok {
@@ -314,7 +325,11 @@ func main() {
 		log.WithFields(log.Fields{"bind": bindAddr}).Info()
 	}
 
-	// Set global objects at the very first
+	// Set global objects at the very first//example:
+	//	//2022-02-09T06:10:35.544|INFO|AGT|container.Connect: - endpoint=
+	//	//2022-02-09T06:10:35.544|INFO|AGT|container._connect: Connecting to docker - endpoint=unix:///var/run/docker.sock
+	//	//2022-02-09T06:10:35.557|INFO|AGT|container._connect: docker connected - endpoint=unix:///var/run/docker.sock version=&{ApiVersion:1.41 Arch:amd64 GitCommit:459d0df GoVersion:go1.16.12 KernelVersion:3.10.0-1160.49.1.el7.x86_64 Os:linux Version:20.10.12}
+	//	//2022-02-09T06:10:35.58 |INFO|AGT|container._connect: - version=&{ApiVersion:1.41 Arch:amd64 GitCommit:459d0df GoVersion:go1.16.12 KernelVersion:3.10.0-1160.49.1.el7.x86_64 Os:linux Version:20.10.12}
 	platform, flavor, network, containers, err := global.SetGlobalObjects(*rtSock, nil)
 	if err != nil {
 		log.WithFields(log.Fields{"error": err}).Error("Failed to initialize")
@@ -338,7 +353,9 @@ func main() {
 			log.WithFields(log.Fields{"error": err}).Error("Unsupported system. Exit!")
 			os.Exit(-2)
 		}
+		//容器保护模式
 		agentEnv.containerShieldMode = (!*skip_nvProtect)
+		//2022-02-09T06:10:36.235|INFO|AGT|main.main: PROC: - shield=true
 		log.WithFields(log.Fields{"shield": agentEnv.containerShieldMode}).Info("PROC:")
 	} else {
 		log.Info("Not running in container.")
@@ -347,7 +364,7 @@ func main() {
 	if platform == share.PlatformKubernetes {
 		selfID = adjustContainerPod(selfID, containers)
 	}
-
+	//当容器up后，可以注入容器端口。至少等待一次。
 	// Container port can be injected after container is up. Wait for at least one.
 	pid2ID := make(map[int]string)
 	for _, meta := range containers {
@@ -358,6 +375,17 @@ func main() {
 
 	for {
 		// Get local host and agent info
+		//获取本地主机和代理信息
+		// example:
+		//|INFO|AGT|main.parseHostAddrs: link - flags=up|broadcast|multicast link=docker0 mtu=1500 type=bridge
+		//2022-02-09T06:10:36.244|INFO|AGT|main.parseHostAddrs: Switch - ipnet={IP:172.17.0.1 Mask:ffff0000} link=docker0
+		//2022-02-09T06:10:36.244|INFO|AGT|main.parseHostAddrs: link - flags=up|broadcast|multicast link=cali4129a0581dd mtu=1440 type=veth
+		//2022-02-09T06:10:36.244|INFO|AGT|main.parseHostAddrs: link - flags=up|broadcast|multicast link=cali563a06a87c3 mtu=1440 type=veth
+		//2022-02-09T06:10:36.244|INFO|AGT|main.parseHostAddrs: link - flags=up|broadcast|multicast link=cali886242786f6 mtu=1440 type=veth
+		//2022-02-09T06:10:36.244|INFO|AGT|main.parseHostAddrs: link - flags=up|broadcast|multicast link=eth0 mtu=1500 type=device
+		//2022-02-09T06:10:36.244|INFO|AGT|main.parseHostAddrs: Global - ipnet={IP:192.168.0.114 Mask:ffffff00} link=eth0
+		//2022-02-09T06:10:36.244|INFO|AGT|main.parseHostAddrs: link - flags=up|loopback link=lo mtu=65536 type=device
+		//2022-02-09T06:10:36.244|INFO|AGT|main.parseHostAddrs: - maxMTU=1500
 		if err = getLocalInfo(selfID, pid2ID); err != nil {
 			log.WithFields(log.Fields{"error": err}).Error("Failed to get local device information")
 			os.Exit(-2)
@@ -372,6 +400,7 @@ func main() {
 	}
 
 	// Check anti-affinity
+	// 反亲和性检查
 	var retry int
 	retryDuration := time.Duration(time.Second * 2)
 	for {
@@ -381,6 +410,10 @@ func main() {
 			// This can happen when user switches from an enforcer to an allinone on the same host.
 			// Will wait and retry instead of quit to tolerate the timing issue.
 			// Also if this enforcer is inside an allinone, the controller can still work correctly.
+			//反亲和性检查失败可能是因为旧的enforcer还没有停止。
+			//当用户在同一主机上从enforcer切换到allinone时，会发生这种情况。
+			//将等待和重试而不是退出，以容忍时间问题。
+			//如果这个强制执行器在allinone中，控制器仍然可以正常工作。
 			retry++
 			if retry == 10 {
 				retryDuration = time.Duration(time.Second * 30)
@@ -464,9 +497,12 @@ func main() {
 		if err == errNotAdmitted || err == errCtrlNotReady {
 			// This indicates controllers are up but license is not loaded.
 			// => exit the process but the container doesn't need to be restarted
+			//这表示控制器已打开，但未加载license。
+			//退出进程，但不需要重新启动容器
 			os.Exit(-1)
 		} else {
 			// Monitor will exit, so the container will be restarted
+			// Monitor将退出，因此容器将重新启动
 			os.Exit(-2)
 		}
 	}
@@ -480,7 +516,7 @@ func main() {
 
 	// Read existing containers again, cluster start can take a while.
 	existing := global.RT.ListContainerIDs()
-
+	// 已存在的容器基数是否大于任务管道的最小值256，大于则以容器基数为缓冲区大小创建管道，小于缓冲区大小则是256
 	if existing.Cardinality() > containerTaskChanSizeMin {
 		ContainerTaskChan = make(chan *ContainerTask, existing.Cardinality())
 	} else {
@@ -502,6 +538,7 @@ func main() {
 		bench.RerunDocker()
 	} else {
 		// If the older version write status into the cluster, clear it.
+		//如果写入状态为旧版本，则清除。
 		bench.ResetDockerStatus()
 	}
 	if !Host.CapKubeBench {
@@ -511,8 +548,9 @@ func main() {
 
 	bPassiveContainerDetect := global.RT.String() == container.RuntimeCriO
 
-	// Probe
+	// Probe 探针
 	probeTaskChan := make(chan *probe.ProbeMessage, 256) // increase to avoid underflow
+	//文件系统监控信息管道
 	fsmonTaskChan := make(chan *fsmon.MonitorMessage, 8)
 	faEndChan := make(chan bool, 1)
 	fsmonEndChan := make(chan bool, 1)
@@ -565,6 +603,8 @@ func main() {
 
 	// grpc need to be put after probe (grpc requests like sessionList, ProbeSummary require probe ready),
 	// and it also should be before clusterLoop, sending grpc port in update agent
+	// grpc需要放在probe后面(grpc请求像sessionList, ProbeSummary需要probe ready
+	// 也应该在clusterLoop之前，在update agent中发送grpc端口
 	global.SYS.CallNetNamespaceFunc(Agent.Pid, func(params interface{}) {
 		grpcServer, Agent.RPCServerPort = startGRPCServer(uint16(*grpcPort))
 	}, nil)
@@ -574,6 +614,7 @@ func main() {
 	eventMonitorLoop(probeTaskChan, fsmonTaskChan, dpStatusChan)
 
 	// Update host and device info to cluster
+	//更新主机和设备信息到集群
 	logAgent(share.CLUSEvAgentStart)
 	Agent.JoinedAt = time.Now().UTC()
 	putLocalInfo()
@@ -613,6 +654,7 @@ func main() {
 	}
 
 	// Check shouldExit() to see the loops that will exit when the flag is set
+	// 检查shouldExit()以查看设置该标志时将退出的循环
 	atomic.StoreInt32(&exitingFlag, 1)
 
 	log.Info("Exiting ...")
@@ -647,5 +689,10 @@ func main() {
 	<-faEndChan
 	<-fsmonEndChan
 	log.Info("Exited")
+	//退出导致当前程序退出给定的状态码。
+	//按照惯例，代码0表示成功，非0表示错误。
+	//程序立即终止;不运行延迟函数。
+	//
+	//对于可移植性，状态码应该在[0,125]的范围内。
 	os.Exit(rc)
 }

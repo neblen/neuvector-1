@@ -1090,6 +1090,7 @@ func getAgentWorkloadFromFilter(filters []restFieldFilter, acc *access.AccessCon
 
 func initDefaultRegistries() {
 	// all on lower-case
+	// 全部小写
 	dockerRegistries = utils.NewSet("https://docker.io/", "https://index.docker.io/", "https://registry.hub.docker.com/", "https://registry-1.docker.io/")
 	defaultRegistries = utils.NewSet("https://docker.io/", "https://index.docker.io/", "https://registry.hub.docker.com/", "https://registry-1.docker.io/")
 	regNames := global.RT.GetDefaultRegistries()
@@ -1402,7 +1403,7 @@ func StartRESTServer() {
 	r.POST("/v1/assess/admission/rule", handlerAssessAdmCtrlRules) // for assessing admission control rules' criteria
 
 	r.POST("/v1/service", handlerServiceCreate)
-	r.PATCH("/v1/service/config", handlerServiceBatchConfig)
+	r.PATCH("/v1/service/config", handlerServiceBatchConfig) //修改对应的策略信息（monitor discover protect）
 	r.GET("/v1/service", handlerServiceList)
 	r.GET("/v1/service/:name", handlerServiceShow)
 	r.PATCH("/v1/service/config/profile", handlerServiceBatchConfigProfile)
