@@ -69,6 +69,7 @@ type ResourceDriver interface {
 
 var baseDriver *base
 
+// wys 根据平台不同初始化不同种类的driver
 func GetDriver(platform, flavor, network string, ver1, ver2 string,
 	sys *system.SystemTools, rt container.Runtime,
 ) Driver {

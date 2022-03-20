@@ -225,14 +225,15 @@ func logController(ev share.TLogEvent) {
 }
 
 var curMemoryPressure uint64
+
 func memoryPressureNotification(rpt *system.MemoryPressureReport) {
 	log.WithFields(log.Fields{"rpt": rpt}).Info()
-	if rpt.Level > 2 {  // cap its maximum
+	if rpt.Level > 2 { // cap its maximum
 		rpt.Level = 2
 	}
 
 	if rpt.Level == curMemoryPressure {
-		return  // skip report
+		return // skip report
 	}
 
 	// launch falling-edge watcher, there is not actual level=0 event
@@ -242,21 +243,21 @@ func memoryPressureNotification(rpt *system.MemoryPressureReport) {
 			var mStats *system.CgroupMemoryStats
 
 			acc := 0
-			for(acc < 7) {
-				time.Sleep(time.Minute*1)
+			for acc < 7 {
+				time.Sleep(time.Minute * 1)
 				if mStats, err = global.SYS.GetContainerMemoryStats(); err != nil {
 					log.WithFields(log.Fields{"error": err}).Error("mem stat")
 					continue
 				}
 
-				limit :=  mStats.Usage.Limit
+				limit := mStats.Usage.Limit
 				if mStats.Usage.Limit == 0 { // it's hitting node's limit
 					limit = uint64(Host.Memory)
 				}
 
 				ratio := uint64(rpt.Stats.WorkingSet * 100 / limit)
 				// log.WithFields(log.Fields{"ratio": ratio, "acc": acc, "limit": limit}).Debug()
-				if ratio <= 50 {     // what is the reasonable threshold?
+				if ratio <= 50 { // what is the reasonable threshold?
 					acc++
 				} else {
 					acc = 0
@@ -264,12 +265,12 @@ func memoryPressureNotification(rpt *system.MemoryPressureReport) {
 			}
 
 			rptt := &system.MemoryPressureReport{
-				Level: 0,  // assumption
+				Level: 0, // assumption
 				Stats: *mStats,
 			}
 
 			putMemoryPressureEvent(rptt, false)
-			curMemoryPressure = 0   // reset
+			curMemoryPressure = 0 // reset
 		}()
 	}
 
@@ -298,18 +299,18 @@ func putMemoryPressureEvent(rpt *system.MemoryPressureReport, setRisingEdge bool
 		}
 	}
 
-	report := map[string]interface{} {
-		"Description": description,
-		"Level": rpt.Level,
-		"UsageLimit": rpt.Stats.Usage.Limit,
-		"NetUsage": rpt.Stats.WorkingSet,
-		"MaxUsage": rpt.Stats.Usage.MaxUsage,
-		"ActiveAnon": rpt.Stats.Stats["active_anon"],
+	report := map[string]interface{}{
+		"Description":  description,
+		"Level":        rpt.Level,
+		"UsageLimit":   rpt.Stats.Usage.Limit,
+		"NetUsage":     rpt.Stats.WorkingSet,
+		"MaxUsage":     rpt.Stats.Usage.MaxUsage,
+		"ActiveAnon":   rpt.Stats.Stats["active_anon"],
 		"InactiveAnon": rpt.Stats.Stats["inactive_anon"],
-		"Cache": rpt.Stats.Stats["cache"],
-		"PageFaults": rpt.Stats.Stats["pgfault"],
-		"RSS": rpt.Stats.Stats["rss"],
-		"Failcnt": rpt.Stats.Usage.Failcnt,
+		"Cache":        rpt.Stats.Stats["cache"],
+		"PageFaults":   rpt.Stats.Stats["pgfault"],
+		"RSS":          rpt.Stats.Stats["rss"],
+		"Failcnt":      rpt.Stats.Usage.Failcnt,
 	}
 
 	b := new(bytes.Buffer)
@@ -331,6 +332,7 @@ func putMemoryPressureEvent(rpt *system.MemoryPressureReport, setRisingEdge bool
 func ctlrPutLocalInfo() {
 	log.Debug("")
 
+	// 获取现在的UTC时间, UTC（Coodinated Universal Time），协调世界时，又称世界统一时间
 	Ctrler.JoinedAt = time.Now().UTC()
 	var value []byte
 	var key string
@@ -343,6 +345,8 @@ func ctlrPutLocalInfo() {
 			log.WithFields(log.Fields{"error": err}).Error("")
 		}
 	*/
+	// Json(Javascript Object Nanotation)是一种数据交换格式，常用于前后端数据传输。任意一端将数据转换成json 字符串
+	// Json Marshal：将数据编码成json字符串 可以理解为结构体转json
 	value, _ = json.Marshal(Ctrler)
 	key = share.CLUSControllerKey(Host.ID, Ctrler.ID)
 	if err := cluster.Put(key, value); err != nil {

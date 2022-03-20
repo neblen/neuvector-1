@@ -44,6 +44,10 @@ type admissionRequestObject struct {
 func getAdmCtrlRuleTypes(query *restQuery, defScope string) ([]string, string) {
 	var ok bool
 	var scope string
+	// basic make([]T, size, cap) 使用make()函数构造切片
+	// T:切片的元素类型
+	// size:切片中元素的数量
+	// cap:切片的容量
 	ruleTypes := make([]string, 0, 4)
 	if query == nil {
 		scope = defScope
@@ -345,10 +349,12 @@ func handlerPatchAdmissionState(w http.ResponseWriter, r *http.Request, ps httpr
 		restRespError(w, http.StatusPreconditionFailed, api.RESTErrAdmCtrlUnSupported)
 		return
 	}
+	// wys 权限校验返回可以使用的AccessControl 和 loginSession
 	acc, login := getAccessControl(w, r, "")
 	if acc == nil {
 		return
 	}
+	// ????? 这个不懂
 	currState, err := cacher.GetAdmissionState(acc)
 	if err != nil {
 		restRespNotFoundLogAccessDenied(w, login, err)
@@ -384,6 +390,7 @@ func handlerPatchAdmissionState(w http.ResponseWriter, r *http.Request, ps httpr
 	}
 
 	state := rconf.State
+	// wys 校验请求参数是否正确
 	if state == nil || (state.Mode != nil && *state.Mode != share.AdmCtrlModeMonitor && *state.Mode != share.AdmCtrlModeProtect) ||
 		(state.DefaultAction != nil && *state.DefaultAction != share.AdmCtrlActionAllow && *state.DefaultAction != share.AdmCtrlActionDeny) ||
 		(state.AdmClientMode != nil && *state.AdmClientMode != share.AdmClientModeSvc && *state.AdmClientMode != share.AdmClientModeUrl) {
@@ -408,6 +415,7 @@ func handlerPatchAdmissionState(w http.ResponseWriter, r *http.Request, ps httpr
 		*/
 	}
 	if state.Mode != nil && *state.Mode == share.AdmCtrlModeProtect {
+		// ???? 为什么要这么写这样写永远进不到这个函数中,licenseAllowEnforce()返回是true已经写死了
 		if licenseAllowEnforce() == false {
 			e := "The policy mode is not enabled in the license"
 			log.WithFields(log.Fields{"mode": *state.Mode}).Error(e)
@@ -425,6 +433,7 @@ func handlerPatchAdmissionState(w http.ResponseWriter, r *http.Request, ps httpr
 		return
 	}
 	defer clusHelper.ReleaseLock(lock)
+	// 前面都是系统参数校验
 
 	status, code, origConf, cconf := setAdmCtrlStateInCluster(state.Enable, state.Mode, state.DefaultAction, state.AdmClientMode, state.FailurePolicy, share.UserCreated)
 	if status != http.StatusOK {
@@ -458,6 +467,7 @@ func handlerPatchAdmissionState(w http.ResponseWriter, r *http.Request, ps httpr
 		}
 		*/
 		failurePolicy := resource.Ignore
+		// wys 配置当前的adminssionwebhook
 		k8sResInfo := admission.ValidatingWebhookConfigInfo{
 			Name: resource.NvAdmValidatingName,
 			WebhooksInfo: []*admission.WebhookInfo{
@@ -483,6 +493,7 @@ func handlerPatchAdmissionState(w http.ResponseWriter, r *http.Request, ps httpr
 				},
 			},
 		}
+		// wys 去k8s开启admissionwebhook
 		skip, err := admission.ConfigK8sAdmissionControl(k8sResInfo, ctrlState)
 		if !skip {
 			var id share.TLogEvent
@@ -642,6 +653,7 @@ func replaceFedAdmissionRules(ruleType string, rulesNew *share.CLUSAdmissionRule
 	return true
 }
 
+// 查看集群所有准入控制规则
 func handlerGetAdmissionRules(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	log.WithFields(log.Fields{"URL": r.URL.String()}).Debug()
 
@@ -650,6 +662,8 @@ func handlerGetAdmissionRules(w http.ResponseWriter, r *http.Request, ps httprou
 		return
 	}
 	query := restParseQuery(r)
+	// wys 通过query获得ruleTypes
+	// wys ruleTypes 是一个切片类型
 	ruleTypes, _ := getAdmCtrlRuleTypes(query, share.ScopeAll) // internal rule types: "exception", "deny", "fed_admctrl_exception" or "fed_admctrl_deny"
 	if len(ruleTypes) == 0 {
 		restRespError(w, http.StatusBadRequest, api.RESTErrInvalidRequest)
@@ -657,12 +671,14 @@ func handlerGetAdmissionRules(w http.ResponseWriter, r *http.Request, ps httprou
 	}
 
 	allRules := make(map[string][]*api.RESTAdmissionRule, 7)
+	// 通过遍历ruleTypes得到allRules
 	for _, ruleType := range ruleTypes {
 		rules := cacher.GetAdmissionRules(admission.NvAdmValidateType, ruleType, acc)
 		switch ruleType {
 		case share.FedAdmCtrlExceptRulesType, share.FedAdmCtrlDenyRulesType:
 			allRules[ruleType] = rules
 		case api.ValidatingExceptRuleType, api.ValidatingDenyRuleType:
+			// wys 创建三个切片
 			critRules := make([]*api.RESTAdmissionRule, 0, 4)
 			crdRules := make([]*api.RESTAdmissionRule, 0, len(rules))
 			userRules := make([]*api.RESTAdmissionRule, 0, len(rules))
@@ -690,16 +706,18 @@ func handlerGetAdmissionRules(w http.ResponseWriter, r *http.Request, ps httprou
 		totalCount += len(rules)
 	}
 	// query.start: start idx(inclusive) of the rule to get in the union of all admission rules
-	end := totalCount // end idx(exclusive) of the rule to get in the union of all admission rules
+	// translate: query.start: 开始规则的idx(inclusive) 进入所有准入规则的并集
+	end := totalCount // end idx(exclusive) of the rule to get in the union of all admission rules 加入所有准入规则的并集
 	if query.limit > 0 && query.limit < totalCount {
 		end = query.start + query.limit
 	}
 
 	// ruleTypes is in display order
+	// translate: ruleTypes 按显示顺序排列
 	ruleTypes = []string{share.CriticalAdmCtrlExceptRulesType, share.FedAdmCtrlExceptRulesType, share.FedAdmCtrlDenyRulesType,
 		share.CrdAdmCtrlExceptRulesType, share.CrdAdmCtrlDenyRulesType, api.ValidatingExceptRuleType, api.ValidatingDenyRuleType}
 	resp := api.RESTAdmissionRulesData{Rules: make([]*api.RESTAdmissionRule, 0, end-query.start)}
-	startIdxTotal := 0 // current idx in the union of all admission rules
+	startIdxTotal := 0 // current idx in the union of all admission rules 所有录取规则联盟中的当前 idx
 	for _, ruleType := range ruleTypes {
 		if rules, ok := allRules[ruleType]; ok && len(rules) > 0 {
 			endIdxTotal := startIdxTotal + len(rules) // idx of the last rule(for this rule type) in the union of all admission rules

@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"github.com/neuvector/neuvector/share"
 	"github.com/neuvector/neuvector/share/container"
 	orchAPI "github.com/neuvector/neuvector/share/orchestration"
 	"github.com/neuvector/neuvector/share/system"
 	"github.com/neuvector/neuvector/share/utils"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -214,7 +214,7 @@ func SetGlobalObjects(rtSocket string, regResource RegisterDriverFunc) (string, 
 
 	k8sVer := getK8sVersion()
 	ocVer := getOcVersion()
-
+	// wys 设置默认值
 	if platform == "" && k8sVer != "" {
 		platform = share.PlatformKubernetes
 	}
@@ -224,7 +224,10 @@ func SetGlobalObjects(rtSocket string, regResource RegisterDriverFunc) (string, 
 	if flavor == share.FlavorOpenShift && platform == "" {
 		platform = share.PlatformKubernetes
 	}
-
+	// wys 初始化ORCH
+	// basic: 一个接口类型的变量能够存储所有实现了该接口的类型变量。所以用driver接口去接多种实现的driver
+	// basic: 在go中上层的结构体中的成员如果这个成员可能有多个实现->这个成员变量是接口类型的
+	// basic: 对接口初始化时指定相应的实现，也就是说将相应实现的结构体赋值给这个接口
 	ORCH = &orchHub{Driver: orchAPI.GetDriver(platform, flavor, network, k8sVer, ocVer, SYS, RT)}
 	if regResource != nil {
 		ORCH.ResourceDriver = regResource(platform, flavor, network)

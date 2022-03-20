@@ -277,6 +277,22 @@ func CLUSWorkloadKey(hostID string, wlID string) string {
 	return fmt.Sprintf("%s%s/%s", CLUSWorkloadStore, hostID, wlID)
 }
 
+// Go 可以使用 fmt.Sprintf 来格式化字符串
+// fmt.Sprintf(格式化样式, 参数列表…)
+// 格式化样式：字符串形式，格式化符号以 % 开头， %s 字符串格式，%d 十进制的整数格式
+//fmt包实现了格式化的I/O。
+//1、fmt.Println:
+//用默认的类型格式将传入的参数写到标准输出
+//参数;字符串和变量之间用逗号间隔，
+//输出：用空格间隔
+//2、fmt.Printf：
+//用占位符将传入的变量写到标准输出
+//输入：占位符，变量
+//输出
+//3、fmt.Sprintf：
+//用占位符将传入的变量返回为字符串，不会在终端显示；
+//4、fmt.Sprintln：
+//用默认的类型格式将传入的参数返回为字符串，字符串和变量之间用空格间隔，不会在终端显示；
 func CLUSNetworkEPKey(hostID string, epID string) string {
 	return fmt.Sprintf("%s%s/%s", CLUSNetworkEPStore, hostID, epID)
 }

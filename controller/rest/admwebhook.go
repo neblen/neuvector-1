@@ -1016,6 +1016,7 @@ func (whsvr *WebhookServer) validate(ar *admissionv1beta1.AdmissionReview, mode 
 }
 
 // Serve method for Kubernetes Admission Control
+// Kubernetes准入控制的服务方法
 func (whsvr *WebhookServer) serveK8s(w http.ResponseWriter, r *http.Request, admType, category, mode string,
 	defaultAction int, body []byte, stamps *api.AdmCtlTimeStamps, nvStatusReq bool) {
 	var admissionResponse *admissionv1beta1.AdmissionResponse
@@ -1042,7 +1043,7 @@ func (whsvr *WebhookServer) serveK8s(w http.ResponseWriter, r *http.Request, adm
 			}
 			return
 		}
-
+		// wys 直接看这个函数如何处理的validate请求
 		if admType == admission.NvAdmValidateType {
 			admissionResponse, ignoredReq = whsvr.validate(&ar, mode, defaultAction, stamps, false)
 			admissionResponse.UID = ar.Request.UID
@@ -1095,10 +1096,13 @@ func (whsvr *WebhookServer) serveK8s(w http.ResponseWriter, r *http.Request, adm
 }
 
 // Serve method for Admission Control webhook server
+// 准入控制 webhook 服务器的服务方法
 func (whsvr *WebhookServer) serveWithTimeStamps(w http.ResponseWriter, r *http.Request, stamps *api.AdmCtlTimeStamps) {
+	// wys stamps  *api.AdmCtlTimeStamps 这个时间戳这个函数中没有用,将时间戳作为参数传递给下一个函数 -> whsvr.serveK8s函数
 	var nvStatusReq bool
-
+	// wys go 中格式化字符串并赋值给新串，使用 fmt.Sprintf
 	uriMiddle := fmt.Sprintf("/%s/%s/", admission.UriAdmCtrlPrefix, admission.UriAdmCtrlNvStatus)
+	// wys strings.Index() Golang中的函数用于获取指定子字符串的第一个实例
 	if strings.Index(r.URL.String(), uriMiddle) > 0 {
 		nvStatusReq = true
 	}
@@ -1107,6 +1111,7 @@ func (whsvr *WebhookServer) serveWithTimeStamps(w http.ResponseWriter, r *http.R
 		cacher.IncrementAdmCtrlProcessing()
 	}
 	enabled, mode, defaultAction, admType, category := cacher.IsAdmControlEnabled(&r.URL.Path)
+	// wys UpdateLocalAdmCtrlStats 还是不太懂这个函数的用法
 	if !enabled {
 		log.WithFields(log.Fields{"path": r.URL.Path, "admType": admType, "category": category}).Debug("disabled path")
 		http.Error(w, "disabled", http.StatusNotImplemented)
@@ -1115,9 +1120,10 @@ func (whsvr *WebhookServer) serveWithTimeStamps(w http.ResponseWriter, r *http.R
 		}
 		return
 	}
-
+	// wys body contentType 参数校验
 	var body []byte
 	if r.Body != nil {
+		// wys ioutil.ReadAll 来读取数据
 		if data, err := ioutil.ReadAll(r.Body); err == nil {
 			body = data
 		}
@@ -1132,6 +1138,7 @@ func (whsvr *WebhookServer) serveWithTimeStamps(w http.ResponseWriter, r *http.R
 	}
 
 	// verify the content type is accurate
+	// 验证内容类型是否准确
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
 		log.WithFields(log.Fields{"contentType": contentType}).Error("unexpectd header")
@@ -1141,11 +1148,12 @@ func (whsvr *WebhookServer) serveWithTimeStamps(w http.ResponseWriter, r *http.R
 		}
 		return
 	}
-
+	// 真正进到处理validate的操作函数
 	whsvr.serveK8s(w, r, admType, category, mode, defaultAction, body, stamps, nvStatusReq)
 }
 
 // Serve method for Admission Control webhook server
+// 准入控制 webhook 服务器的服务方法
 func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	var stamps api.AdmCtlTimeStamps
 

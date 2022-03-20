@@ -255,6 +255,7 @@ func SetGetGroupWithoutLockFunc(funcObj FuncGetGroupWithoutLock) {
 }
 
 ///// only process cacher for now
+// translate: 暂时只处理缓存
 func Init() *uuidPRuleCache {
 	log.Info("UUID: ")
 	pc := new(uuidPRuleCache)

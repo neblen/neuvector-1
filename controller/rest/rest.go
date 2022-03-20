@@ -1388,10 +1388,10 @@ func StartRESTServer() {
 	r.DELETE("/v1/response/rule", handlerResponseRuleDeleteAll)               // supported 'scope' query parameter values: "fed"/"local"(default). no payload
 	r.GET("/v1/response/options", handlerResponseRuleOptions)                 // Skip API document, use internally. supported 'scope' query parameter values: "fed"/"local"(default).
 	r.GET("/v1/admission/state", handlerGetAdmissionState)
-	r.PATCH("/v1/admission/state", handlerPatchAdmissionState)
+	r.PATCH("/v1/admission/state", handlerPatchAdmissionState) // 修改准入控制模式(开启关闭准入控制,准入控制模式修改(protect,monitor))
 	r.GET("/v1/admission/options", handlerGetAdmissionOptions)
 	r.GET("/v1/admission/stats", handlerAdmissionStatistics)
-	r.GET("/v1/admission/rules", handlerGetAdmissionRules)             // supported 'scope' query parameter values: ""(all, default)/"fed"/"local". no payload
+	r.GET("/v1/admission/rules", handlerGetAdmissionRules)             // 查看集群所有准入控制规则  把consul中的准入控制规则返回前端  // supported 'scope' query parameter values: ""(all, default)/"fed"/"local". no payload
 	r.GET("/v1/admission/rule/:id", handlerGetAdmissionRule)           // no payload
 	r.POST("/v1/admission/rule", handlerAddAdmissionRule)              //
 	r.PATCH("/v1/admission/rule", handlerPatchAdmissionRule)           // rule id is in payload

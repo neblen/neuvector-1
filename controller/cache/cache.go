@@ -1882,6 +1882,7 @@ func Init(ctx *Context, leader bool, leadAddr string) CacheInterface {
 	cacher.isLeader = leader
 	cacher.leadAddr = leadAddr
 
+	//有关consul的信息
 	clusHelper = kv.GetClusterHelper()
 	cfgHelper = kv.GetConfigHelper()
 	dispatchHelper = kv.GetDispatchHelper()
@@ -1897,8 +1898,11 @@ func Init(ctx *Context, leader bool, leadAddr string) CacheInterface {
 
 	// admissionRuleInit needs to be called before startWorkerThread so that
 	// we know whether we need to modify namesapce for admCtrl's namespaceSelector feature before orch watcher starts
+	// admissionRuleInit 需要在 startWorkerThread 之前调用，这样
+	// 我们知道是否需要在 orch watcher 启动之前修改 admCtrl 的 namespaceSelector 功能的命名空间
 	admissionRuleInit()
 
+	//hml 通过定时的方式，不断获取ipnets的信息，以及根据k8s平台的资源变化，修改对应的监控列表
 	startWorkerThread() // timer and orch channel
 	startPolicyThread()
 

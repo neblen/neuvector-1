@@ -109,11 +109,14 @@ type MemoryPressureCallback func(report *MemoryPressureReport)
 
 func (s *SystemTools) IsRunningInContainer() bool {
 	// A hidden file to indicate we are in container
+	// wys 一个隐藏文件，表明我们在容器中
+	// wys os.Stat用法 func Stat(name string) (fi FileInfo, err error) // 获取文件信息
 	_, err := os.Stat(neuvectorContainer)
 	return err == nil
 
 	// If we look at /proc/1/cgroup, in the host, lines end by /; in container, it has name of the anchor point.
 	// However, this approach is not reliable if the container is sharing pid namespace with the host !!!
+	// wys 但是，如果容器与主机共享 pid 命名空间，这种方法是不可靠的！！！
 }
 
 // With containerd runtime, container ID can be any string. But when it is used
